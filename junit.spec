@@ -34,7 +34,7 @@
 
 Name:           %{?scl_prefix}%{pkg_name}
 Version:        4.11
-Release:        8.15.bs1%{?dist}
+Release:        8.16%{?dist}
 Epoch:          0
 Summary:        Java regression test package
 License:        CPL
@@ -48,6 +48,7 @@ Source3:        create-tarball.sh
 
 # Removing hamcrest source jar references (not available and/or necessary)
 Patch0:         %{pkg_name}-no-hamcrest-src.patch
+Patch1:         %{pkg_name}-ignore-bridge-methods.patch
 
 BuildRequires:  %{?scl_prefix}ant
 BuildRequires:  %{?scl_prefix_maven}ant-contrib
@@ -90,6 +91,7 @@ Demonstrations and samples for %{pkg_name}.
 %{?scl:scl enable %{scl_maven} %{scl} - <<"EOF"}
 set -e -x
 %patch0 -p1
+%patch1 -p1
 
 cp build/maven/junit-pom-template.xml pom.xml
 # fix placeholder version in pom
@@ -101,7 +103,7 @@ ln -s $(build-classpath hamcrest/core) lib/hamcrest-core-1.3.jar
 %build
 %{?scl:scl enable %{scl_maven} %{scl} - <<"EOF"}
 set -e -x
-ant dist -Dversion-status= || :
+ant dist -Dversion-status=
 
 # inject OSGi manifest
 mkdir -p META-INF
@@ -152,6 +154,9 @@ cp -pr %{pkg_name}%{version}/%{pkg_name}/* %{buildroot}%{_datadir}/%{pkg_name}/d
 %doc junit%{version}/doc/*
 
 %changelog
+* Wed Feb 17 2016 Michael Simacek <msimacek@redhat.com> - 0:4.11-8.16
+- Ignore bridge methods to fix build under JDK 7
+
 * Thu Jul 02 2015 Michael Simacek <msimacek@redhat.com> - 0:4.11-8.15
 - Fix OSGi manifest metadata (rhbz#1238311)
 

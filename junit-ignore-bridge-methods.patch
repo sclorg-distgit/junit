@@ -1,0 +1,24 @@
+From 80542f2c5d3d52812405829d8e1c5b0a0acc3e7e Mon Sep 17 00:00:00 2001
+From: Michael Simacek <msimacek@redhat.com>
+Date: Tue, 1 Dec 2015 11:21:07 +0100
+Subject: [PATCH] Ignore bridge methods
+
+---
+ src/main/java/org/junit/runners/model/TestClass.java | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/main/java/org/junit/runners/model/TestClass.java b/src/main/java/org/junit/runners/model/TestClass.java
+index 93209ea..baca84d 100644
+--- a/src/main/java/org/junit/runners/model/TestClass.java
++++ b/src/main/java/org/junit/runners/model/TestClass.java
+@@ -43,6 +43,7 @@ public class TestClass {
+ 
+         for (Class<?> eachClass : getSuperClasses(fClass)) {
+             for (Method eachMethod : MethodSorter.getDeclaredMethods(eachClass)) {
++                if (!eachMethod.isBridge())
+                 addToAnnotationLists(new FrameworkMethod(eachMethod),
+                         fMethodsForAnnotations);
+             }
+-- 
+2.5.0
+

@@ -33,32 +33,25 @@
 #
 
 Name:           %{?scl_prefix}%{pkg_name}
-Version:        4.11
-Release:        8.16%{?dist}
+Version:        4.12
+Release:        1%{?dist}
 Epoch:          0
 Summary:        Java regression test package
-License:        CPL
+License:        EPL
 URL:            http://www.junit.org/
 BuildArch:      noarch
 
-# ./clean-tarball.sh %{version}
+# ./create-tarball.sh %{version}
 Source0:        %{pkg_name}-%{version}-clean.tar.gz
-Source2:        junit-OSGi-MANIFEST.MF
 Source3:        create-tarball.sh
 
-# Removing hamcrest source jar references (not available and/or necessary)
-Patch0:         %{pkg_name}-no-hamcrest-src.patch
-Patch1:         %{pkg_name}-ignore-bridge-methods.patch
+BuildRequires:  %{?scl_prefix}maven-local
+BuildRequires:  %{?scl_prefix_maven}mvn(org.apache.felix:maven-bundle-plugin)
+BuildRequires:  %{?scl_prefix_maven}mvn(org.apache.maven.plugins:maven-enforcer-plugin)
+BuildRequires:  %{?scl_prefix_maven}mvn(org.apache.maven.plugins:maven-shade-plugin)
+BuildRequires:  %{?scl_prefix}mvn(org.hamcrest:hamcrest-core)
 
-BuildRequires:  %{?scl_prefix}ant
-BuildRequires:  %{?scl_prefix_maven}ant-contrib
-BuildRequires:  %{?scl_prefix}javapackages-tools
-BuildRequires:  %{?scl_prefix}hamcrest
-BuildRequires:  perl(Digest::MD5)
-BuildRequires:  zip
-
-Requires:       %{?scl_prefix}hamcrest
-
+Obsoletes:      %{name}-demo < 4.12
 
 %description
 JUnit is a regression testing framework written by Erich Gamma and Kent Beck. 
@@ -79,81 +72,87 @@ Summary:        Javadoc for %{pkg_name}
 %description javadoc
 Javadoc for %{pkg_name}.
 
-%package demo
-Summary:        Demos for %{pkg_name}
-Requires:       %{name} = %{epoch}:%{version}-%{release}
-
-%description demo
-Demonstrations and samples for %{pkg_name}.
-
 %prep
 %setup -q -n %{pkg_name}-r%{version}
 %{?scl:scl enable %{scl_maven} %{scl} - <<"EOF"}
 set -e -x
-%patch0 -p1
-%patch1 -p1
 
-cp build/maven/junit-pom-template.xml pom.xml
-# fix placeholder version in pom
-%pom_xpath_set pom:project/pom:version "%{version}"
+# InaccessibleBaseClassTest fails with Java 8
+sed -i /InaccessibleBaseClassTest/d src/test/java/org/junit/tests/AllTests.java
 
-ln -s $(build-classpath hamcrest/core) lib/hamcrest-core-1.3.jar
+%pom_remove_plugin :replacer
+sed s/@version@/%{version}/ src/main/java/junit/runner/Version.java.template >src/main/java/junit/runner/Version.java
+
+%pom_remove_plugin :animal-sniffer-maven-plugin
+
+# Removing hamcrest source jar references (not available and/or necessary)
+%pom_remove_plugin :maven-javadoc-plugin
+
+# Add proper Apache Felix Bundle Plugin instructions
+# so that we get a reasonable OSGi manifest.
+%pom_xpath_inject pom:project "<packaging>bundle</packaging>"
+%pom_xpath_inject pom:build/pom:plugins "
+    <plugin>
+      <groupId>org.apache.felix</groupId>
+      <artifactId>maven-bundle-plugin</artifactId>
+      <extensions>true</extensions>
+      <configuration>
+        <instructions>
+          <Bundle-SymbolicName>org.junit</Bundle-SymbolicName>
+          <Export-Package>{local-packages},!org.hamcrest*,*;x-internal:=true</Export-Package>
+          <_nouses>true</_nouses>
+        </instructions>
+      </configuration>
+    </plugin>"
+
+# junit 4.11 bundled hamcrest, we need to re-add it to keep compatibility
+%pom_add_plugin :maven-shade-plugin '
+<executions>
+  <execution>
+    <goals>
+      <goal>shade</goal>
+    </goals>
+    <configuration>
+      <artifactSet>
+        <includes>
+          <include>org.hamcrest:hamcrest-core</include>
+        </includes>
+      </artifactSet>
+    </configuration>
+  </execution>
+</executions>'
+
+%mvn_file : %{pkg_name} %{pkg_name}4
+
 %{?scl:EOF}
 
 %build
 %{?scl:scl enable %{scl_maven} %{scl} - <<"EOF"}
 set -e -x
-ant dist -Dversion-status=
-
-# inject OSGi manifest
-mkdir -p META-INF
-cp -p %{SOURCE2} META-INF/MANIFEST.MF
-touch META-INF/MANIFEST.MF
-zip -u %{pkg_name}%{version}/%{pkg_name}-%{version}.jar META-INF/MANIFEST.MF
+%mvn_build
 %{?scl:EOF}
 
 %install
 %{?scl:scl enable %{scl_maven} %{scl} - <<"EOF"}
 set -e -x
-# jars
-install -d -m 755 %{buildroot}%{_javadir}
-install -m 644 %{pkg_name}%{version}/%{pkg_name}-%{version}.jar %{buildroot}%{_javadir}/%{pkg_name}.jar
-# Many packages still use the junit4.jar directly
-ln -s %{_javadir}/%{pkg_name}.jar %{buildroot}%{_javadir}/%{pkg_name}4.jar
-
-# pom
-install -d -m 755 %{buildroot}%{_mavenpomdir}
-install -m 644 pom.xml %{buildroot}%{_mavenpomdir}/JPP-%{pkg_name}.pom
-%add_maven_depmap
-
-# javadoc
-install -d -m 755 %{buildroot}%{_javadocdir}/%{name}
-cp -pr %{pkg_name}%{version}/javadoc/* %{buildroot}%{_javadocdir}/%{name}
-
-# demo
-install -d -m 755 %{buildroot}%{_datadir}/%{pkg_name}/demo/%{pkg_name} 
-
-cp -pr %{pkg_name}%{version}/%{pkg_name}/* %{buildroot}%{_datadir}/%{pkg_name}/demo/%{pkg_name}
+%mvn_install
 %{?scl:EOF}
 
-
 %files -f .mfiles
-%doc LICENSE README CODING_STYLE
-%{_javadir}/%{pkg_name}4.jar
+%doc LICENSE-junit.txt README.md
 
-%files demo
-%doc LICENSE
-%{_datadir}/%{pkg_name}
-
-%files javadoc
-%doc LICENSE
-%doc %{_javadocdir}/%{name}
+%files javadoc -f .mfiles-javadoc
+%doc LICENSE-junit.txt
 
 %files manual
-%doc LICENSE README CODING_STYLE
-%doc junit%{version}/doc/*
+%doc LICENSE-junit.txt
+%doc doc/*
 
 %changelog
+* Mon Jan 09 2017 Michael Simacek <msimacek@redhat.com> - 0:4.12-1
+- Update to upstream version 4.12
+- Resolves: rhbz#1401033
+
 * Wed Feb 17 2016 Michael Simacek <msimacek@redhat.com> - 0:4.11-8.16
 - Ignore bridge methods to fix build under JDK 7
 

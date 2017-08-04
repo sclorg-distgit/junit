@@ -4,7 +4,7 @@
 Name:           %{?scl_prefix}junit
 Epoch:          1
 Version:        4.12
-Release:        6.1%{?dist}
+Release:        6.2%{?dist}
 Summary:        Java regression test package
 License:        EPL
 URL:            http://www.junit.org/
@@ -88,6 +88,9 @@ sed s/@version@/%{version}/ src/main/java/junit/runner/Version.java.template >sr
 %doc doc/*
 
 %changelog
+* Thu Jun 22 2017 Michael Simacek <msimacek@redhat.com> - 1:4.12-6.2
+- Mass rebuild 2017-06-22
+
 * Wed Jun 21 2017 Java Maintainers <java-maint@redhat.com> - 1:4.12-6.1
 - Automated package import and SCL-ization
 
